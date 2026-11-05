@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Node / Vite
+node_modules/
+a2ui-iframe/dist/
+a2ui-iframe/node_modules/
+*.tsbuildinfo
+
+# Environment & Secrets
+.env
+.env.local
+*.pem
+*.key
+service-account*.json
+
+# OS
+.DS_Store
