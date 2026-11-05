@@ -28,6 +28,74 @@ class InboundA2UIAction:
     surface_id: str | None = None
 
 
+def _parse_button_prompt_text(text: str) -> InboundA2UIAction | None:
+    """Detect exact button prompt strings emitted by EagleEye A2UI surfaces when sent as plain text."""
+    stripped = text.strip()
+    lower = stripped.lower()
+    if lower.startswith("scale regional hyperdisk balanced ha in "):
+        return InboundA2UIAction(
+            action="scale_hyperdisk_iops",
+            prompt=stripped,
+            data={"region": "europe-west2", "targetIops": 320000, "targetThroughputMib": 12000},
+        )
+    if lower.startswith("approve and execute act-hd-scale-320k"):
+        return InboundA2UIAction(
+            action="confirm_hitl_execution",
+            prompt=stripped,
+            data={
+                "surfaceId": "sre-hitl-confirmation-gate",
+                "actionId": "ACT-HD-SCALE-320K",
+                "targetDisk": "loyalty-mysql-prod-eu-west2-hd-ha",
+                "region": "europe-west2",
+                "requestedIops": 320000,
+                "requestedThroughputMib": 12000,
+            },
+            surface_id="sre-hitl-confirmation-gate",
+        )
+    if lower.startswith("cancel infrastructure modification act-hd-scale-320k"):
+        return InboundA2UIAction(
+            action="cancel_hitl_execution",
+            prompt=stripped,
+            data={
+                "surfaceId": "sre-hitl-confirmation-gate",
+                "actionId": "ACT-HD-SCALE-320K",
+                "targetDisk": "loyalty-mysql-prod-eu-west2-hd-ha",
+            },
+            surface_id="sre-hitl-confirmation-gate",
+        )
+    if lower.startswith("drain pos traffic from exhausted zone "):
+        return InboundA2UIAction(
+            action="drain_exhausted_zone",
+            prompt=stripped,
+            data={"incidentId": "INC-2026-8841", "region": "europe-west2", "zone": "europe-west2-b"},
+        )
+    if lower.startswith("create an atlassian rovo jira p1 incident ticket for "):
+        return InboundA2UIAction(
+            action="create_jira_incident",
+            prompt=stripped,
+            data={"incidentId": "INC-2026-8841", "region": "europe-west2"},
+        )
+    if lower.startswith("generate a 1-click blameless postmortem in google docs and executive slides for "):
+        return InboundA2UIAction(
+            action="draft_workspace_postmortem",
+            prompt=stripped,
+            data={"incidentId": "INC-2026-8841", "region": "europe-west2"},
+        )
+    if lower == "open the interactive eagleeye sre command center workbench in the side-panel canvas.":
+        return InboundA2UIAction(
+            action="open_sre_command_center",
+            prompt=stripped,
+            data={"activeTab": "capacity"},
+        )
+    if lower.startswith("stage retirement of 72 idle warm-standby vms"):
+        return InboundA2UIAction(
+            action="stage_idle_reservation_retirement",
+            prompt=stripped,
+            data={"retiredVmCount": 72},
+        )
+    return None
+
+
 def parse_inbound_a2ui_action(raw_input: str | dict[str, Any]) -> InboundA2UIAction | None:
     """Parse an inbound a2ui_action payload from JSON string, dict, or A2UI event envelope."""
     payload: dict[str, Any] | None = None
@@ -42,6 +110,8 @@ def parse_inbound_a2ui_action(raw_input: str | dict[str, Any]) -> InboundA2UIAct
                     payload = parsed
             except json.JSONDecodeError:
                 payload = None
+        else:
+            return _parse_button_prompt_text(stripped)
 
     if not payload:
         return None
@@ -59,19 +129,26 @@ def parse_inbound_a2ui_action(raw_input: str | dict[str, Any]) -> InboundA2UIAct
         )
 
     # Format 2: Native A2UI v0.9 button event `{ "event": { "name": "...", "context": { "prompt": "..." } } }`
-    if isinstance(payload.get("event"), dict):
-        evt = payload["event"]
-        name = evt.get("name")
-        ctx = evt.get("context") if isinstance(evt.get("context"), dict) else {}
-        if isinstance(name, str) and name:
-            prompt = str(ctx.get("prompt") or f"Execute {name}")
-            surface_id = ctx.get("surfaceId") if isinstance(ctx.get("surfaceId"), str) else None
-            return InboundA2UIAction(
-                action=name,
-                prompt=prompt,
-                data=ctx,
-                surface_id=surface_id,
-            )
+    # or Gemini Enterprise `{ "userAction": { "name": "...", "surfaceId": "...", "context": { ... } } }`
+    # or `{ "action": { "name": "...", "surfaceId": "...", "context": { ... } } }`
+    for key in ("event", "userAction", "action"):
+        if isinstance(payload.get(key), dict):
+            evt = payload[key]
+            name = evt.get("name") or evt.get("actionName")
+            ctx = evt.get("context") if isinstance(evt.get("context"), dict) else {}
+            if isinstance(name, str) and name:
+                prompt = str(ctx.get("prompt") or f"Execute {name}")
+                surface_id = (
+                    evt.get("surfaceId")
+                    if isinstance(evt.get("surfaceId"), str)
+                    else (ctx.get("surfaceId") if isinstance(ctx.get("surfaceId"), str) else None)
+                )
+                return InboundA2UIAction(
+                    action=name,
+                    prompt=prompt,
+                    data=ctx,
+                    surface_id=surface_id,
+                )
 
     return None
 
@@ -157,6 +234,50 @@ def dispatch_a2ui_action(inbound: InboundA2UIAction) -> dict[str, Any]:
             "a2ui_messages": surfaces,
         }
 
+    if act == "create_jira_incident":
+        incident_id = str(data.get("incidentId", "INC-2026-8841"))
+        region = str(data.get("region", "europe-west2"))
+        summary_text = (
+            f"Created Atlassian Rovo Jira P1 Incident Ticket SRE-9412 for {incident_id} ({region}) "
+            f"grounded on Confluence runbook CONF-RB-402 (Zonal Exhaustion & Hyperdisk Balanced HA Failover)."
+        )
+        surfaces = build_hitl_receipt_update_surface(
+            action_id="JIRA-SRE-9412",
+            target_disk=f"{incident_id} ({region})",
+            status="CREATED",
+            summary=summary_text,
+            surface_id="sre-jira-ticket-receipt",
+            include_create_surface=True,
+        )
+        return {
+            "status": "CREATED",
+            "action": act,
+            "summary": summary_text,
+            "a2ui_messages": surfaces,
+        }
+
+    if act == "draft_workspace_postmortem":
+        incident_id = str(data.get("incidentId", "INC-2026-8841"))
+        region = str(data.get("region", "europe-west2"))
+        summary_text = (
+            f"Generated 1-Click Google Workspace Blameless Postmortem Doc (DOC-PM-8841), Executive "
+            f"Briefing Deck (SLIDES-PM-8841), and FinOps/SLO Timeline Sheet (SHEETS-PM-8841) for {incident_id} ({region})."
+        )
+        surfaces = build_hitl_receipt_update_surface(
+            action_id="WORKSPACE-PM-8841",
+            target_disk=f"{incident_id} ({region})",
+            status="GENERATED",
+            summary=summary_text,
+            surface_id="sre-postmortem-receipt",
+            include_create_surface=True,
+        )
+        return {
+            "status": "GENERATED",
+            "action": act,
+            "summary": summary_text,
+            "a2ui_messages": surfaces,
+        }
+
     if act in ("open_sre_command_center", "switch_workbench_tab"):
         tab = str(data.get("activeTab", "capacity"))
         surfaces = build_sre_command_center_iframe_surface(active_tab=tab)
@@ -188,6 +309,7 @@ def dispatch_a2ui_action(inbound: InboundA2UIAction) -> dict[str, Any]:
         status="COMPLETED",
         summary=summary_text,
         surface_id=inbound.surface_id or "sre-workbench-action-receipt",
+        include_create_surface=inbound.surface_id is None,
     )
     return {
         "status": "COMPLETED",

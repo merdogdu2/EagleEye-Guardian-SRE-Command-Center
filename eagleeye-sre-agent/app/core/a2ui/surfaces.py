@@ -52,17 +52,31 @@ def build_incident_triage_surface(
         },
     }
 
+    step_titles = ["Detected", "Correlated", "Mitigating", "Resolved"]
+    stepper_steps = [
+        {
+            "title": title,
+            "status": (
+                "completed"
+                if idx < active_step_index or active_step_index >= len(step_titles) - 1
+                else ("in_progress" if idx == active_step_index else "pending")
+            ),
+        }
+        for idx, title in enumerate(step_titles)
+    ]
+
     components: list[dict[str, Any]] = [
         {
             "id": "root",
             "component": "MaterialCard",
-            "variant": "elevated",
+            "appearance": "raised",
             "children": ["card-col"],
         },
         {
             "id": "card-col",
             "component": "MaterialColumn",
             "justify": "start",
+            "align": "stretch",
             "children": [
                 "title-text",
                 "subtitle-text",
@@ -94,12 +108,7 @@ def build_incident_triage_surface(
             "id": "incident-stepper",
             "component": "Stepper",
             "activeStep": active_step_index,
-            "steps": [
-                {"label": "Detected", "status": "completed"},
-                {"label": "Correlated", "status": "active"},
-                {"label": "Mitigating", "status": "pending"},
-                {"label": "Resolved", "status": "pending"},
-            ],
+            "steps": stepper_steps,
         },
         {
             "id": "latency-vega-chart",
@@ -197,7 +206,7 @@ def build_hitl_confirmation_surface(
         {
             "id": "root",
             "component": "MaterialCard",
-            "variant": "outlined",
+            "appearance": "outlined",
             "children": ["gate-col"],
         },
         {
@@ -240,7 +249,11 @@ def build_hitl_confirmation_surface(
             ],
             "checks": [
                 {
-                    "rule": "required",
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/form/storageTier"}},
+                        "returnType": "boolean",
+                    },
                     "message": "Storage tier selection is mandatory.",
                 }
             ],
@@ -251,11 +264,24 @@ def build_hitl_confirmation_surface(
             "label": "Provisioned IOPS (Max 640,000)",
             "value": {"path": "/form/provisionedIops"},
             "checks": [
-                {"rule": "required", "message": "IOPS value is required."},
                 {
-                    "rule": "range",
-                    "min": 10000,
-                    "max": 640000,
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/form/provisionedIops"}},
+                        "returnType": "boolean",
+                    },
+                    "message": "IOPS value is required.",
+                },
+                {
+                    "condition": {
+                        "call": "numeric",
+                        "args": {
+                            "value": {"path": "/form/provisionedIops"},
+                            "min": 10000,
+                            "max": 640000,
+                        },
+                        "returnType": "boolean",
+                    },
                     "message": "IOPS must be between 10,000 and 640,000.",
                 },
             ],
@@ -267,8 +293,14 @@ def build_hitl_confirmation_surface(
             "value": {"path": "/form/justification"},
             "checks": [
                 {
-                    "rule": "minLength",
-                    "min": 5,
+                    "condition": {
+                        "call": "length",
+                        "args": {
+                            "value": {"path": "/form/justification"},
+                            "min": 5,
+                        },
+                        "returnType": "boolean",
+                    },
                     "message": "Provide a valid Jira ticket or justification.",
                 }
             ],
@@ -343,13 +375,14 @@ def build_hitl_receipt_update_surface(
     status: str = "EXECUTED",
     summary: str = "Scaled Regional Hyperdisk Balanced HA to 320,000 IOPS / 12,000 MiB/s (RPO=0, Torn-Write Protection active, next scaling window unlocked in 4h).",
     surface_id: str = "sre-hitl-confirmation-gate",
+    include_create_surface: bool = False,
 ) -> list[dict[str, Any]]:
     """Update the HITL Confirmation Gate in-place (same surfaceId) with a read-only execution receipt."""
     components: list[dict[str, Any]] = [
         {
             "id": "root",
             "component": "MaterialCard",
-            "variant": "filled",
+            "appearance": "raised",
             "children": ["receipt-col"],
         },
         {
@@ -374,7 +407,18 @@ def build_hitl_receipt_update_surface(
             usage_hint="body1",
         ),
     ]
-    return [
+    messages: list[dict[str, Any]] = []
+    if include_create_surface:
+        messages.append(
+            {
+                "version": A2UI_VERSION,
+                "createSurface": {
+                    "surfaceId": surface_id,
+                    "catalogId": A2UI_CATALOG_ID,
+                },
+            }
+        )
+    messages.append(
         {
             "version": A2UI_VERSION,
             "updateComponents": {
@@ -382,7 +426,8 @@ def build_hitl_receipt_update_surface(
                 "components": components,
             },
         }
-    ]
+    )
+    return messages
 
 
 def build_fleet_finops_explorer_surface(
@@ -477,6 +522,10 @@ def build_fleet_finops_explorer_surface(
             "id": "root",
             "component": "Canvas",
             "children": ["canvas-main-col"],
+            "autoOpen": True,
+            "cardTitle": "Global Retail Fleet & FinOps Explorer",
+            "cardDescription": "Multi-region N1 exit, Idle Standby VM retirement & Hyperdisk Balanced HA metrics",
+            "cardIcon": "table_chart",
         },
         {
             "id": "canvas-main-col",
@@ -605,6 +654,10 @@ def build_sre_command_center_iframe_surface(
             "id": "root",
             "component": "Canvas",
             "children": ["iframe-canvas-col"],
+            "autoOpen": True,
+            "cardTitle": "EagleEye Guardian SRE Command Center",
+            "cardDescription": "Interactive 4-Tab Capacity, Hyperdisk HA FinOps, Spanner & VPC-SC Workbench",
+            "cardIcon": "dashboard_customize",
         },
         {
             "id": "iframe-canvas-col",

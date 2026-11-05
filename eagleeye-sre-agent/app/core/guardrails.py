@@ -18,8 +18,10 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 from google.genai.types import Content, Part
 
+from app.core.a2ui.a2a_bridge import install_a2a_bridge
 from app.core.a2ui.actions import dispatch_a2ui_action, parse_inbound_a2ui_action
 from app.core.a2ui.primitives import (
+    A2UI_CLOSE_TAG,
     A2UI_MIME_TYPE,
     A2UI_OPEN_TAG,
     extract_a2ui_messages_from_part,
@@ -34,6 +36,8 @@ from app.core.a2ui.surfaces import (
 from app.core.config import MAX_TOOL_OUTPUT_BYTES
 
 logger = logging.getLogger(__name__)
+
+install_a2a_bridge()
 
 
 def enforce_tool_output_budget(
@@ -117,19 +121,32 @@ def before_model_call(
         last_content = contents[-1]
         if getattr(last_content, "role", None) == "user" and getattr(last_content, "parts", None):
             for part in last_content.parts or []:
+                inbound = None
                 if part.text:
                     inbound = parse_inbound_a2ui_action(part.text)
-                    if inbound is not None:
-                        dispatched = dispatch_a2ui_action(inbound)
-                        response_parts: list[Part] = [Part.from_text(text=dispatched["summary"])]
-                        try:
-                            a2ui_part = wrap_a2ui_part(dispatched["a2ui_messages"])
-                            response_parts.append(a2ui_part)
-                        except Exception as exc:  # pragma: no cover
-                            logger.warning("Graceful A2UI fallback on action dispatch: %s", exc)
-                        return LlmResponse(
-                            content=Content(role="model", parts=response_parts),
-                        )
+                elif getattr(part, "inline_data", None) and getattr(part.inline_data, "data", None):
+                    raw_bytes = part.inline_data.data
+                    raw_str = (
+                        raw_bytes.decode("utf-8", errors="ignore")
+                        if isinstance(raw_bytes, (bytes, bytearray))
+                        else str(raw_bytes)
+                    )
+                    open_tag = A2UI_OPEN_TAG.decode("utf-8")
+                    close_tag = A2UI_CLOSE_TAG.decode("utf-8")
+                    if raw_str.startswith(open_tag) and raw_str.endswith(close_tag):
+                        raw_str = raw_str[len(open_tag) : -len(close_tag)]
+                    inbound = parse_inbound_a2ui_action(raw_str)
+                if inbound is not None:
+                    dispatched = dispatch_a2ui_action(inbound)
+                    response_parts: list[Part] = [Part.from_text(text=dispatched["summary"])]
+                    try:
+                        a2ui_part = wrap_a2ui_part(dispatched["a2ui_messages"])
+                        response_parts.append(a2ui_part)
+                    except Exception as exc:  # pragma: no cover
+                        logger.warning("Graceful A2UI fallback on action dispatch: %s", exc)
+                    return LlmResponse(
+                        content=Content(role="model", parts=response_parts),
+                    )
 
     # 2. Sanitize prior-turn A2UI parts in history so the LLM never echoes raw A2UI JSON in prose
     for content in contents:
@@ -151,20 +168,69 @@ history_callback = before_model_call
 def _select_surface_for_text(text: str) -> list[dict[str, Any]] | None:
     """Select an A2UI v0.9 surface envelope based on the model's response or requested surface tag."""
     lower = text.lower()
-    if "[surface:hitl]" in lower or "hitl confirmation" in lower or "approval required" in lower:
-        return build_hitl_confirmation_surface()
-    if "[surface:explorer]" in lower or "rich_table" in lower or "finops explorer" in lower:
-        return build_fleet_finops_explorer_surface()
-    if "[surface:workbench]" in lower or "command center" in lower or "sre workbench" in lower:
-        return build_sre_command_center_iframe_surface()
-    if (
-        "[surface:incident]" in lower
-        or "zone_resource_pool_exhausted" in lower
+    combined: list[dict[str, Any]] = []
+
+    has_explicit_tag = any(
+        tag in lower
+        for tag in ("[surface:incident]", "[surface:hitl]", "[surface:explorer]", "[surface:workbench]")
+    )
+    if has_explicit_tag:
+        if "[surface:incident]" in lower:
+            combined.extend(build_incident_triage_surface())
+        if "[surface:hitl]" in lower:
+            combined.extend(build_hitl_confirmation_surface())
+        if "[surface:explorer]" in lower:
+            combined.extend(build_fleet_finops_explorer_surface())
+        if "[surface:workbench]" in lower:
+            combined.extend(build_sre_command_center_iframe_surface())
+        return combined or None
+
+    is_incident = (
+        "zone_resource_pool_exhausted" in lower
         or "inc-2026" in lower
         or "p99 latency" in lower
-    ):
-        return build_incident_triage_surface()
-    return None
+        or "682.4" in lower
+    )
+    is_hitl = (
+        "hitl confirmation" in lower
+        or "approval required" in lower
+        or "human-in-the-loop" in lower
+        or "act-hd-scale-320k" in lower
+    )
+    is_explorer = (
+        "rich_table" in lower
+        or "richtable" in lower
+        or "finops explorer" in lower
+        or "idle standby" in lower
+        or "n1 exit" in lower
+    )
+    is_workbench = (
+        "command center" in lower
+        or "sre workbench" in lower
+        or "#s=z." in lower
+        or "vpc service controls" in lower
+        or "security_policy_violated" in lower
+        or "cloud spanner" in lower
+        or "rtx pro 6000" in lower
+    )
+
+    if is_incident:
+        combined.extend(build_incident_triage_surface())
+    if is_hitl:
+        combined.extend(build_hitl_confirmation_surface())
+    if is_workbench:
+        active_tab = "capacity"
+        if "vpc" in lower or "security_policy_violated" in lower:
+            active_tab = "security"
+        elif "spanner" in lower:
+            active_tab = "spanner"
+        elif "hyperdisk" in lower and not is_incident:
+            active_tab = "hyperdisk"
+        combined.extend(build_sre_command_center_iframe_surface(active_tab=active_tab))
+    elif is_explorer:
+        combined.extend(build_fleet_finops_explorer_surface())
+
+    return combined or None
 
 
 def after_model_callback(
@@ -177,6 +243,10 @@ def after_model_callback(
     try:
         content = getattr(llm_response, "content", None)
         if content is None or not getattr(content, "parts", None):
+            return None
+
+        # Skip intermediate tool-calling turns so surfaces attach only to final model responses
+        if any(getattr(p, "function_call", None) is not None for p in (content.parts or [])):
             return None
 
         # Check if an A2UI Part is already attached

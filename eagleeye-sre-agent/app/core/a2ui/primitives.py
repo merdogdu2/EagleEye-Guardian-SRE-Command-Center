@@ -149,9 +149,25 @@ def make_formatted_number_text(
     decimals: int = 0,
     usage_hint: str = "body1",
 ) -> dict[str, Any]:
-    """Bind a numeric path inside MaterialText using formatNumber with returnType='string'."""
+    """Bind a numeric path inside MaterialText using formatString/formatNumber with returnType='string'."""
     if usage_hint not in ALLOWED_USAGE_HINTS:
         raise ValueError(f"Forbidden usageHint '{usage_hint}'.")
+    if prefix or suffix:
+        return {
+            "id": comp_id,
+            "component": "MaterialText",
+            "usageHint": usage_hint,
+            "text": {
+                "call": "formatString",
+                "returnType": "string",
+                "args": {
+                    "value": (
+                        f"{prefix}${{formatNumber(value:${{{data_path}}}, "
+                        f"decimals:{decimals}, grouping:true)}}{suffix}"
+                    ),
+                },
+            },
+        }
     return {
         "id": comp_id,
         "component": "MaterialText",
@@ -162,8 +178,7 @@ def make_formatted_number_text(
             "args": {
                 "value": {"path": data_path},
                 "decimals": decimals,
-                "prefix": prefix,
-                "suffix": suffix,
+                "grouping": True,
             },
         },
     }
@@ -183,11 +198,24 @@ def make_button(
     context: dict[str, Any] = {"prompt": prompt.strip()}
     if extra_context:
         context.update(extra_context)
+    appearance_map = {
+        "filled": ("filled", "raised"),
+        "outlined": ("outlined", "stroked"),
+        "tonal": ("tonal", "flat"),
+        "elevated": ("elevated", "raised"),
+        "text": ("text", "basic"),
+        "raised": ("filled", "raised"),
+        "stroked": ("outlined", "stroked"),
+        "flat": ("tonal", "flat"),
+        "basic": ("text", "basic"),
+    }
+    appearance, btn_variant = appearance_map.get(variant, ("filled", "raised"))
     return {
         "id": comp_id,
         "component": "MaterialButton",
         "label": label,
-        "variant": variant,
+        "variant": btn_variant,
+        "appearance": appearance,
         "action": {
             "event": {
                 "name": event_name,

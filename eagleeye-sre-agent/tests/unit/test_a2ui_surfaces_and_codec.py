@@ -143,3 +143,53 @@ def test_validator_catches_all_guardrail_violations() -> None:
 
     with pytest.raises(ValueError, match="A2UI v0.9 validation failed"):
         wrap_a2ui_part(invalid_envelope)
+
+
+def test_a2a_endpoint_and_a2ui_datapart_conversion() -> None:
+    """Verify /a2a/app/.well-known/agent-card.json and POST /a2a/app emit A2UI v0.9 DataParts."""
+    from fastapi.testclient import TestClient
+
+    from app.server import A2UI_EXTENSION_URI, app
+
+    with TestClient(app) as client:
+        card_resp = client.get("/a2a/app/.well-known/agent-card.json")
+        assert card_resp.status_code == 200
+        card = card_resp.json()
+        assert card["name"] == "eagleeye_guardian_sre"
+        ext_uris = [e["uri"] for e in card.get("capabilities", {}).get("extensions", [])]
+        assert A2UI_EXTENSION_URI in ext_uris
+
+        rpc_payload = {
+            "jsonrpc": "2.0",
+            "id": "test-a2ui-rpc-1",
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "messageId": "msg-a2ui-1",
+                    "role": "user",
+                    "parts": [
+                        {
+                            "kind": "text",
+                            "text": "Scale Regional Hyperdisk Balanced HA in europe-west2 to 320,000 IOPS and 12,000 MiB/s.",
+                        }
+                    ],
+                }
+            },
+        }
+        rpc_resp = client.post(
+            "/a2a/app",
+            json=rpc_payload,
+            headers={"X-A2A-Extensions": A2UI_EXTENSION_URI},
+        )
+        assert rpc_resp.status_code == 200
+        assert A2UI_EXTENSION_URI in rpc_resp.headers.get("x-a2a-extensions", "")
+        result = rpc_resp.json().get("result", {})
+        artifacts = result.get("artifacts", [])
+        assert artifacts, f"Expected A2A artifacts in response, got: {rpc_resp.json()}"
+        all_parts = [p for art in artifacts for p in art.get("parts", [])]
+        data_parts = [p for p in all_parts if p.get("kind") == "data"]
+        assert len(data_parts) == 3
+        assert data_parts[0]["metadata"]["mimeType"] == A2UI_MIME_TYPE
+        assert "createSurface" in data_parts[0]["data"]
+        assert "updateDataModel" in data_parts[1]["data"]
+        assert "updateComponents" in data_parts[2]["data"]

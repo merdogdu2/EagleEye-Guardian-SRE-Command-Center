@@ -109,6 +109,11 @@ def correlate_pos_incident_telemetry(
             "Dynamically scale Regional Hyperdisk Balanced HA to 320,000 IOPS / 12,000 MiB/s with Torn-Write Protection.",
             "Trigger Atlassian Rovo runbook grounding and create a P1 Jira incident.",
         ],
+        "war_room_context": {
+            "hitl_gate_action": "ACT-HD-SCALE-320K (Scale loyalty-mysql-prod-eu-west2-hd-ha to 320,000 IOPS / 12,000 MiB/s, RPO=0, <2.5m RTO, Torn-Write Protection enabled, 1x/4h scaling window)",
+            "fleet_finops_summary": "159 legacy N1 VMs exiting to C4/N4/C3 across 6 regions; retiring 72 idle warm-standby VMs saves $214,100/month ($2.57M/year)",
+            "gpu_advisor_summary": "NVIDIA RTX PRO 6000 (g4-standard-384): DWS Flex-start recommended for uninterrupted 7-day runs; Spot VMs for fault-tolerant checkpointed workloads",
+        },
         "ui_hint": "[surface:incident]",
     }
     return enforce_tool_output_budget(payload)
