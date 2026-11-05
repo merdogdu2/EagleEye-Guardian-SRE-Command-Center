@@ -11,103 +11,269 @@
 
 ## 1. Multi-Agent Architecture
 
-### 1.1 End-to-End Multi-Agent Control Plane & A2UI v0.9 Topology
+### 1.1 Executive System Context & Global Retail Footprint
+
+```mermaid
+flowchart LR
+    classDef actor fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef ge fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#e0e7ff
+    classDef adk fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#ecfdf5
+    classDef gcp fill:#172554,stroke:#60a5fa,stroke-width:2px,color:#eff6ff
+    classDef conn fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#fef3c7
+
+    SRE["SRE / Platform Engineer
+    • On-Call Incident Commander
+    • FinOps & Capacity Planner"]:::actor
+
+    subgraph GE["Google Cloud Gemini Enterprise"]
+        Chat["Conversational Assistant
+        • Inline A2UI v0.9 MaterialCards
+        • Stepper + VegaChart + HITL Gate"]:::ge
+        Canvas["Right-Hand Side-Panel Canvas
+        • Native Looker Studio RichTable
+        • React 19 SRE Command Center IFrame"]:::ge
+    end
+
+    subgraph Runtime["Vertex AI Agent Engine & Cloud Run A2A"]
+        App["EagleEye Guardian ADK App
+        • SafetyAndA2UIPlugin (10 Guardrails)
+        • BigQueryAgentAnalyticsPlugin
+        • ContextCache & EventsCompaction"]:::adk
+    end
+
+    subgraph Fleet["6 Global Retail POS Regions (<250ms p99 SLA)"]
+        EU["EMEA Retail Footprint
+        • europe-west2 (London)
+        • europe-west1 (Belgium)"]:::gcp
+        US["Americas Retail Footprint
+        • us-east1 (South Carolina)
+        • us-east4 (Northern Virginia)"]:::gcp
+        APAC["APAC Retail Footprint
+        • australia-southeast1 (Sydney)
+        • australia-southeast2 (Melbourne)"]:::gcp
+    end
+
+    subgraph Connectors["Enterprise Federated Connectors"]
+        Rovo["Atlassian Rovo
+        • Jira Incident Tickets
+        • Confluence SRE Runbooks"]:::conn
+        GWS["Google Workspace
+        • Docs Blameless Postmortems
+        • Slides Exec Decks & Sheets"]:::conn
+    end
+
+    SRE <==>|"Natural Language &
+    Interactive UI Clicks"| GE
+    Chat & Canvas <==>|"A2A JSON-RPC +
+    Part(application/json+a2ui)"| App
+    App <==>|"Cloud Monitoring, Compute,
+    Hyperdisk HA, Spanner, VPC-SC"| EU & US & APAC
+    App <==>|"OAuth 2.0 Federated
+    Grounding & Action Execution"| Rovo & GWS
+```
+
+---
+
+### 1.2 ADK Multi-Agent Orchestration & Specialist Pillar Topology
 
 ```mermaid
 flowchart TB
-    classDef userNode fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
-    classDef pluginNode fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#e0e7ff
-    classDef routerNode fill:#172554,stroke:#60a5fa,stroke-width:2px,color:#eff6ff
-    classDef pillarNode fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#ecfdf5
-    classDef toolNode fill:#111827,stroke:#64748b,stroke-width:1px,color:#cbd5e1
-    classDef surfaceNode fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#faf5ff
-    classDef infraNode fill:#451a03,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7
+    classDef plugin fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#e0e7ff
+    classDef router fill:#172554,stroke:#38bdf8,stroke-width:2.5px,color:#f0f9ff
+    classDef pillar fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#ecfdf5
+    classDef tool fill:#0f172a,stroke:#64748b,stroke-width:1.5px,color:#e2e8f0
 
-    subgraph ClientLayer["Google Cloud Gemini Enterprise Workspace"]
-        SRE["SRE / Platform Engineer\n(Conversational Chat & Side-Panel Canvas)"]:::userNode
-        subgraph A2UIPresentation["A2UI v0.9 Composite Catalog Surfaces"]
-            S_Inc["Inline Incident Triage Card\n(MaterialCard + Stepper + VegaChart)"]:::surfaceNode
-            S_Hitl["Inline HITL Confirmation Gate\n(MaterialSelect/Input -> In-Place Receipt)"]:::surfaceNode
-            S_Table["Native Side-Panel Fleet Explorer\n(Canvas -> MaterialColumn -> RichTable)"]:::surfaceNode
-            S_Iframe["Stateless React 19 SRE Command Center\n(Canvas -> IFrameUrl #s=z.deflate-raw)"]:::surfaceNode
+    subgraph Ingress["1. Inbound Request & History Sanitization Pipeline"]
+        InHook["SafetyAndA2UIPlugin.before_model_call
+        • Intercepts inbound a2ui_action payloads deterministically
+        • Strips prior-turn <a2a_datapart_json> into concise text summaries"]:::plugin
+        CacheCfg["ADK Runtime State & Telemetry
+        • ContextCacheConfig (TTL 1800s, min 2048 tokens)
+        • EventsCompactionConfig (interval 12, overlap 2)
+        • ResumabilityConfig + BigQueryAgentAnalyticsPlugin"]:::plugin
+    end
+
+    Router["2. eagleeye_guardian_root (gemini-2.5-flash)
+    Low-Latency Intent Classifier & Multi-Pillar Coordinator"]:::router
+
+    subgraph Pillars["3. Four Domain Specialist Sub-Agents (gemini-2.5-pro)"]
+        direction LR
+
+        subgraph Col1["Pillar 1: Incident & Postmortem"]
+            P1["incident_triage_agent"]:::pillar
+            T1A["correlate_pos_incident_telemetry
+            • <250ms p99 POS SLA monitor
+            • ZONE_RESOURCE_POOL_EXHAUSTED"]:::tool
+            T1B["ground_and_create_rovo_incident
+            • Confluence runbook grounding
+            • P1 Jira ticket creation"]:::tool
+            T1C["generate_workspace_blameless_postmortem
+            • 1-click Docs, Slides & Sheets"]:::tool
+            P1 --> T1A & T1B & T1C
+        end
+
+        subgraph Col2["Pillar 2: Capacity & GPU Shield"]
+            P2["capacity_shield_agent"]:::pillar
+            T2A["audit_bfcm_n1_exit_and_headroom
+            • Legacy N1 -> C4/N4/C3/C3D
+            • Cross-family BFCM spillover"]:::tool
+            T2B["audit_idle_reservations_vs_cuds
+            • Retires warm-standby VMs
+            • 3-yr Flexible CUD optimization"]:::tool
+            T2C["advise_g4_gpu_placement
+            • NVIDIA RTX PRO 6000 (g4-standard-384)
+            • Spot vs. DWS Flex-start (<=7d)"]:::tool
+            P2 --> T2A & T2B & T2C
+        end
+
+        subgraph Col3["Pillar 3: Database & Storage"]
+            P3["database_reliability_agent"]:::pillar
+            T3A["model_hyperdisk_balanced_ha_migration
+            • 640k IOPS / 20,000 MiB/s
+            • RPO=0, <2.5m RTO, Torn-Write Off"]:::tool
+            T3B["optimize_snapshot_recycle_bin
+            • 72h immutable ransomware guard
+            • Delta-chain FinOps reclamation"]:::tool
+            T3C["spanner_load_test_long_running_tool
+            • LongRunningFunctionTool (150k+ QPS)
+            • Split & hot-key diagnostics"]:::tool
+            P3 --> T3A & T3B & T3C
+        end
+
+        subgraph Col4["Pillar 4: Security & VPC-SC"]
+            P4["security_guard_agent"]:::pillar
+            T4A["diagnose_vpc_sc_audit_violations
+            • VpcServiceControlAuditMetadata
+            • gcloud + Terraform HCL generator"]:::tool
+            T4B["check_gemini_enterprise_connectors
+            • OAuth token TTL & scope audit
+            • Data-source quota guard"]:::tool
+            P4 --> T4A & T4B
         end
     end
 
-    subgraph ADKRuntime["Google ADK App Runtime (app/agent.py < 100 Lines)"]
-        subgraph Plugins["ADK Runtime Config & Plugins"]
-            P_Safety["SafetyAndA2UIPlugin\n• before_model_call History Sanitizer\n• Deterministic a2ui_action Intercept\n• <= 16 KB Tool Output Budget Guard\n• after_model_callback Safe Envelope"]:::pluginNode
-            P_BQ["BigQueryAgentAnalyticsPlugin\n• Streaming Agent & Tool Telemetry"]:::pluginNode
-            P_Cfg["ADK App Resilience Configs\n• ContextCacheConfig (TTL 1800s)\n• EventsCompactionConfig\n• ResumabilityConfig"]:::pluginNode
-        end
-
-        Router["eagleeye_guardian_root\n(gemini-2.5-flash Fast Router)"]:::routerNode
-
-        subgraph SpecialistPillars["Four Domain Specialist Sub-Agents (gemini-2.5-pro)"]
-            P1["Pillar 1: incident_triage_agent\nPOS <250ms p99 SLA & Postmortems"]:::pillarNode
-            P2["Pillar 2: capacity_shield_agent\nBFCM N1 Exit & G4 GPU Advisor"]:::pillarNode
-            P3["Pillar 3: database_reliability_agent\nHyperdisk HA & Cloud Spanner"]:::pillarNode
-            P4["Pillar 4: security_guard_agent\nVPC-SC & Federated Connectors"]:::pillarNode
-
-            T1["• correlate_pos_incident_telemetry\n• ground_and_create_rovo_incident\n• generate_workspace_blameless_postmortem"]:::toolNode
-            T2["• audit_bfcm_n1_exit_and_headroom\n• audit_idle_reservations_vs_cuds\n• advise_g4_gpu_placement (RTX PRO 6000)"]:::toolNode
-            T3["• model_hyperdisk_balanced_ha_migration\n• optimize_snapshot_recycle_bin\n• spanner_load_test_long_running_tool"]:::toolNode
-            T4["• diagnose_vpc_sc_audit_violations\n• check_gemini_enterprise_connectors"]:::toolNode
-        end
+    subgraph Egress["4. Outbound Budget Enforcement & A2UI v0.9 Packaging"]
+        ToolCap["SafetyAndA2UIPlugin.after_tool_callback
+        • Enforces strict <= 16,384 byte (16 KB) JSON payload ceiling"]:::plugin
+        OutHook["SafetyAndA2UIPlugin.after_model_callback
+        • Validates all 10 mandatory A2UI v0.9 rules
+        • Wraps <a2a_datapart_json> with try/except graceful text fallback"]:::plugin
     end
 
-    subgraph CloudDataPlane["Global Retail Cloud Infrastructure & Federated Connectors"]
-        Fleet["6 Global Retail Regions\neurope-west2/1 | us-east1/4 | australia-southeast1/2\n(C4/N4/C3/C3D + G4 Spot & DWS Flex-start)"]:::infraNode
-        Storage["Transactional Data Tier\n• 50+ TB MySQL on Regional Hyperdisk Balanced HA\n  (640k IOPS, 20k MiB/s, RPO=0, Torn-Write Off)\n• Cloud Spanner Multi-Region Ledger"]:::infraNode
-        SecConn["Security & Enterprise Connectors\n• VPC-SC Perimeters & Access Context Manager\n• Atlassian Rovo (Jira & Confluence)\n• Google Workspace (Docs, Slides, Sheets)"]:::infraNode
-    end
-
-    SRE ==>|"1. Prompt or postMessage(a2ui_action)"| P_Safety
-    P_Safety -.->|"Audit Events"| P_BQ
-    P_Cfg -.->|"Session & Cache Context"| Router
-    P_Safety ==>|"2. Sanitized History"| Router
-
-    Router ==>|"SLA Breach & RCA"| P1
-    Router ==>|"N1 Exit, CUDs & G4 GPU"| P2
-    Router ==>|"Hyperdisk HA & Spanner"| P3
-    Router ==>|"VPC-SC & OAuth Health"| P4
-
-    P1 --- T1
-    P2 --- T2
-    P3 --- T3
-    P4 --- T4
-
-    T1 & T2 <--> Fleet
-    T1 & T3 <--> Storage
-    T1 & T4 <--> SecConn
-
-    T1 & T2 & T3 & T4 ==>|"3. <= 16 KB JSON Payload"| P_Safety
-    P_Safety ==>|"4. Part(application/json+a2ui)"| S_Inc & S_Hitl & S_Table & S_Iframe
-    S_Inc & S_Hitl & S_Table & S_Iframe ==>|"5. Interactive UI & Action Events"| SRE
+    InHook --> Router
+    CacheCfg -.-> Router
+    Router ==> P1 & P2 & P3 & P4
+    Col1 & Col2 & Col3 & Col4 ==> ToolCap
+    ToolCap ==> OutHook
 ```
 
-### 1.2 Interactive A2UI v0.9 & Stateless IFrame Execution Sequence
+---
+
+### 1.3 A2UI v0.9 Wire Protocol, Stateless DEFLATE Hydration & `postMessage` Bridge
+
+```mermaid
+flowchart LR
+    classDef py fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#ecfdf5
+    classDef wire fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#faf5ff
+    classDef react fill:#0c4a6e,stroke:#38bdf8,stroke-width:2px,color:#f0f9ff
+
+    subgraph Backend["Python ADK A2UI v0.9 Engine (app/core/a2ui/)"]
+        Builder["Surface Builders (surfaces.py)
+        • createSurface (composite catalog)
+        • updateDataModel (/chartSpec, /fleetTableData)
+        • updateComponents (flat adjacency list)"]:::py
+        CodecPy["Raw DEFLATE State Encoder (primitives.py)
+        • zlib.compressobj(wbits=-15)
+        • URL-safe Base64 -> #s=z.<base64url>"]:::py
+        ActionPy["Deterministic Action Dispatcher (actions.py)
+        • Parses inbound a2ui_action JSON
+        • Emits in-place updateComponents receipt"]:::py
+    end
+
+    subgraph Wire["Gemini Enterprise A2A Stream"]
+        PartEnv["google.genai.types.Part
+        • inline_data: <a2a_datapart_json>[...]</a2a_datapart_json>
+        • part_metadata: mimeType = application/json+a2ui"]:::wire
+        PostMsg["Browser postMessage Bridge
+        • type: a2ui_action
+        • action: scale_hyperdisk_iops | confirm_hitl_execution
+        • data: { prompt, surfaceId, ...payload }"]:::wire
+    end
+
+    subgraph Frontend["Stateless React 19 + Vite 6 Workbench (a2ui-iframe/)"]
+        Hydrate["Zero-Privilege URL Hash Inflator (codec.ts)
+        • Reads window.location.hash (#s=z.*)
+        • DecompressionStream('deflate-raw')
+        • Standalone Demo Dataset fallback"]:::react
+        Tabs["Four Interactive SRE Workbench Tabs (App.tsx)
+        • Tab 1: BFCM N1 Exit & G4 GPU Advisor
+        • Tab 2: Hyperdisk Balanced HA FinOps Sliders
+        • Tab 3: Cloud Spanner Split & Hot-Key Visualizer
+        • Tab 4: VPC-SC Terraform/gcloud & OAuth Guard"]:::react
+    end
+
+    Builder --> PartEnv
+    CodecPy -->|"origin=REPLACE_WITH_PARENT_ORIGIN#s=z.*"| PartEnv
+    PartEnv ==> Hydrate
+    Hydrate --> Tabs
+    Tabs ==>|"window.parent.postMessage(...)"| PostMsg
+    PostMsg ==> ActionPy
+    ActionPy -->|"In-place surfaceId update"| Builder
+```
+
+---
+
+### 1.4 Incident-to-Remediation Sequence & In-Place HITL State Machine
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor SRE as SRE Engineer (Gemini Enterprise)
+    actor SRE as SRE Commander
+    participant GE as Gemini Enterprise UI
     participant Plugin as SafetyAndA2UIPlugin
-    participant Router as eagleeye_guardian_root (Flash)
-    participant Specialist as Specialist Pillar Agent (Pro)
-    participant Canvas as React 19 a2ui-iframe & Native Cards
+    participant Router as eagleeye_guardian_root
+    participant Pillars as Specialist Pillars (1-4)
+    participant IFrame as React 19 a2ui-iframe
 
-    SRE->>Plugin: "europe-west2 POS p99 jumped to 682ms with ZONE_RESOURCE_POOL_EXHAUSTED"
-    Note over Plugin: before_model_call replaces prior<br/>A2UI JSON blobs with text summaries
-    Plugin->>Router: Forward sanitized LlmRequest
-    Router->>Specialist: Delegate to incident_triage_agent / database_reliability_agent
-    Specialist->>Plugin: Return tool telemetry (<= 16 KB cap enforced)
-    Note over Plugin: after_model_callback wraps A2UI v0.9 JSON<br/>in <a2a_datapart_json> + raw DEFLATE #s=z.*
-    Plugin-->>Canvas: Render Incident Triage Card (Stepper + VegaChart) & IFrame Workbench
-    Canvas-->>SRE: Inflate #s=z.<base64url> via DecompressionStream('deflate-raw')
-    SRE->>Canvas: Adjust Hyperdisk HA slider to 320,000 IOPS & click "Confirm & Execute"
-    Canvas->>Plugin: window.parent.postMessage({ type: "a2ui_action", action: "confirm_hitl_execution", data: { prompt, surfaceId } })
-    Note over Plugin: Deterministic a2ui_action intercept<br/>updates surfaceId in-place (updateComponents)
-    Plugin-->>Canvas: Replace HITL buttons in-place with immutable Execution Receipt Card
+    rect rgb(15, 23, 42)
+        Note over SRE,Pillars: Phase 1 — Real-Time POS SLA Triage & Multi-Pillar Correlation
+        SRE->>GE: "europe-west2 POS p99 jumped to 682ms with ZONE_RESOURCE_POOL_EXHAUSTED"
+        GE->>Plugin: LlmRequest (with prior-turn history)
+        Plugin->>Plugin: before_model_call sanitizes prior A2UI blobs to text summaries
+        Plugin->>Router: Forward clean LlmRequest
+        Router->>Pillars: Delegate to incident_triage_agent & database_reliability_agent
+        Pillars-->>Plugin: Telemetry JSON (<= 16 KB cap verified by after_tool_callback)
+        Plugin-->>GE: Prose RCA + Part(application/json+a2ui) [Incident Card + IFrame Canvas]
+    end
+
+    rect rgb(30, 27, 75)
+        Note over GE,IFrame: Phase 2 — Zero-Privilege URL-Hash DEFLATE Hydration
+        GE->>IFrame: Load IFrameUrl (?origin=...#s=z.<deflate-raw-base64url>)
+        IFrame->>IFrame: DecompressionStream('deflate-raw') hydrates 4 SRE Workbench Tabs
+        SRE->>IFrame: Tune Hyperdisk Balanced HA sliders (320k IOPS, 12,000 MiB/s, Torn-Write Off)
+        IFrame->>GE: window.parent.postMessage({ type: "a2ui_action", action: "scale_hyperdisk_iops", data: { prompt } })
+    end
+
+    rect rgb(6, 78, 59)
+        Note over GE,Plugin: Phase 3 — Human-in-the-Loop (HITL) Gate & In-Place Receipt Update
+        GE->>Plugin: Forward inbound a2ui_action event
+        Plugin-->>GE: Render HITL Confirmation Gate (surfaceId: "sre-hitl-confirmation-gate")
+        SRE->>GE: Verify validation checks & click "Confirm & Execute Change"
+        GE->>Plugin: event: confirm_hitl_execution (surfaceId: "sre-hitl-confirmation-gate")
+        Plugin-->>GE: Emit updateComponents on SAME surfaceId -> Immutable Execution Receipt
+    end
+```
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Detected: POS p99 > 250ms Alert
+    Detected --> Correlated: correlate_pos_incident_telemetry()\nZONE_RESOURCE_POOL_EXHAUSTED + 100k IOPS Cap
+    Correlated --> HITL_Gate_Open: scale_hyperdisk_iops\n(sre-hitl-confirmation-gate)
+    HITL_Gate_Open --> Mitigating: confirm_hitl_execution\nIn-Place Receipt (320k IOPS, RPO=0)
+    HITL_Gate_Open --> Correlated: cancel_hitl_execution\nIn-Place Cancellation Receipt
+    Mitigating --> Resolved: C4/N4 Spillover Complete\nPOS p99 = 188ms (<250ms SLA)
+    Resolved --> [*]: 1-Click Rovo Jira + Workspace Postmortem
 ```
 
 ---
