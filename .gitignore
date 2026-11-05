@@ -25,3 +25,7 @@ service-account*.json
 
 # OS
 .DS_Store
+
+# ADK local session storage
+.adk/
+*.db
