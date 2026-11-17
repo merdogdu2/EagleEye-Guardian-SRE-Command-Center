@@ -1,9 +1,16 @@
-# EagleEye Guardian — Autonomous SRE & Cloud Operations Platform
+<div align="center">
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![ADK](https://img.shields.io/badge/Google_ADK-Multi--Agent-4285F4)](https://google.github.io/adk-docs/)
-[![A2UI](https://img.shields.io/badge/A2UI-v0.9_Composite_Catalog-34A853)](#a2ui-v09-architecture)
-[![React 19](https://img.shields.io/badge/React_19-Vite_6_Stateless_Canvas-61DAFB)](#stateless-react-19-sre-command-center)
+# 🦅 EagleEye Guardian — Autonomous SRE & Cloud Operations Platform
+### Multi-Agent Retail POS Reliability, Capacity Shield, Hyperdisk HA & VPC-SC Command Center on Gemini Enterprise
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-10B981?style=for-the-badge)](./LICENSE)
+[![ADK](https://img.shields.io/badge/Google_ADK-Multi--Agent_System-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)](https://google.github.io/adk-docs/)
+[![A2UI](https://img.shields.io/badge/A2UI_v0.9-Composite_Catalog-34A853?style=for-the-badge&logo=googlegemini&logoColor=white)](#3-a2ui-v09-architecture--guardrails)
+[![React 19](https://img.shields.io/badge/React_19-Vite_6_Stateless_Canvas-61DAFB?style=for-the-badge&logo=react&logoColor=black)](#4-stateless-react-19-sre-command-center-a2ui-iframe)
+
+**[Multi-Agent Architecture](#1-multi-agent-architecture)** • **[Four SRE Pillars](#2-four-sre-domain-pillars)** • **[A2UI v0.9 Protocol](#3-a2ui-v09-architecture--guardrails)** • **[React 19 Workbench](#4-stateless-react-19-sre-command-center-a2ui-iframe)** • **[Quickstart](#5-quickstart--verification)** • **[Demo Prompt Playbook](#6-copy-paste-demo-prompt-playbook)**
+
+</div>
 
 **EagleEye Guardian** is a production-grade, full-stack SRE & Cloud Operations multi-agent system designed for a global high-concurrency retail loyalty, coupon redemption, and Point-of-Sale (POS) transaction platform (`<250ms` p99 SLA across `europe-west2`, `europe-west1`, `us-east1`, `us-east4`, `australia-southeast1`, and `australia-southeast2`) running on **Google Cloud Gemini Enterprise**.
 
